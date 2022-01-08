@@ -1,12 +1,9 @@
-FROM ubuntu as plugin-builder
+FROM alpine as plugin-builder
 
-ARG DEBIAN_FRONTEND=noninteractive
-ENV TZ=Europe/Berlin
-
-RUN apt-get update
-RUN apt-get install -y \
-    build-essential \
-    git
+RUN apk add gcc
+RUN apk add git
+RUN apk add make
+RUN apk add musl-dev
 
 RUN mkdir /develop && \
     cd /develop && \
@@ -17,3 +14,13 @@ COPY . /develop/plugins/add-properties
 WORKDIR /develop/plugins/add-properties
 
 RUN make
+
+# ---
+
+FROM eclipse-mosquitto
+
+COPY contrib/mosquitto.conf /mosquitto/config/mosquitto.conf
+COPY --from=plugin-builder /develop/plugins/add-properties/add_properties.so /mosquitto/plugins/add_properties.so
+
+EXPOSE 1883
+EXPOSE 9001
