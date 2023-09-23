@@ -1,4 +1,4 @@
-FROM alpine as plugin-builder
+FROM alpine:3 as plugin-builder
 
 RUN apk add gcc
 RUN apk add git
@@ -17,7 +17,7 @@ RUN make
 
 # ---
 
-FROM eclipse-mosquitto
+FROM eclipse-mosquitto:2
 
 COPY mosquitto.conf /mosquitto/config/mosquitto.conf
 COPY --from=plugin-builder /develop/plugins/add-properties/add_properties.so /mosquitto/plugins/add_properties.so
