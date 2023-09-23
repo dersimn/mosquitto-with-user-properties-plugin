@@ -16,7 +16,10 @@ client.on('connect', function () {
 
 client.on('message', function (topic, message, packet) {
     const now = Date.now();
-    console.log(packet, now, now - packet?.properties?.userProperties?.['$TIMESTAMP']);
+    console.log('-------------------');
+    console.log('Payload:', packet);
+    console.log('Received by us:', now);
+    console.log('Diff (received by us/received by broker):', now - packet?.properties?.userProperties?.['$TIMESTAMP']);
 })
 
 var ticker = 0;
