@@ -19,7 +19,7 @@ RUN make
 
 FROM eclipse-mosquitto
 
-COPY contrib/mosquitto.conf /mosquitto/config/mosquitto.conf
+COPY mosquitto.conf /mosquitto/config/mosquitto.conf
 COPY --from=plugin-builder /develop/plugins/add-properties/add_properties.so /mosquitto/plugins/add_properties.so
 
 EXPOSE 1883
