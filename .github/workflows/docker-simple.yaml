@@ -1,0 +1,105 @@
+name: Docker build and publish
+run-name: Run for ${{ github.ref_name }} (${{github.ref_type}}, triggered by ${{ github.event_name }})
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron:  '27 4 * * *'
+  push:
+    branches:
+      # Run on every branch
+      - '**'
+      # Except branches beginning with:
+      - '!fail/**'
+      - '!dead-end/**'
+      - '!trash/**'
+    tags:
+      - '**'
+
+env:
+  # Base image, usually first line of Dockerfile e.g.: `FROM alpine:3`
+  BASE_IMAGE: eclipse-mosquitto:2
+  BUILD_PLATFORMS: linux/386,linux/amd64,linux/arm/v6,linux/arm64/v8,linux/ppc64le,linux/s390x
+  # Target image without tags, e.g.: `dersimn/github-actions-to-docker-hub-simple`
+  TARGET_IMAGE: ${{ github.repository }}  # only if username + repository is all lowercase and the same as user + repo on Docker Hubs
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if update for base image is available
+        id: check
+        uses: lucacome/docker-image-update-checker@v1
+        if: ${{ github.event_name == 'schedule' }}
+        with:
+          base-image: ${{ env.BASE_IMAGE }}
+          # Since the "check" step is executed only by schedule and the schedule
+          # always uses the default branch (which is the latest), we only check
+          # "latest" tag here.
+          image: ${{ env.TARGET_IMAGE }}
+          # Platforms containing variants are (at the moment) not supported by
+          # update checker, see
+          # <https://github.com/lucacome/docker-image-update-checker/issues/27>.
+          # Workaround: Don't use platform at all. Defaults to check only
+          # `linux/amd64`, since almost every image has at least `linux/amd64`
+          # platform and images are usually updated for all platforms at the
+          # same time, this should be fine for now.
+          #platforms: ${{ env.BUILD_PLATFORMS }}
+
+      - name: Decide to continue or skip
+        id: should-build
+        # If check-step was skipped, output variable will be empty
+        run: echo continue=${{ (steps.check.outputs.needs-updating == 'true') || (github.event_name != 'schedule') }} >> $GITHUB_OUTPUT
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        if: ${{ steps.should-build.outputs.continue == 'true' }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
+        if: ${{ steps.should-build.outputs.continue == 'true' }}
+        with:
+          images: ${{ env.TARGET_IMAGE }}
+          flavor: |
+            latest=false
+          tags: |
+            # Latest tag only for default branch
+            type=raw,value=latest,enable={{is_default_branch}}
+            # Git branch or tag name
+            type=ref,event=branch
+            type=ref,event=tag
+            # Git commit short SHA: sha-ad132f5
+            #type=sha
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        if: ${{ steps.should-build.outputs.continue == 'true' }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        if: ${{ steps.should-build.outputs.continue == 'true' }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        if: ${{ steps.should-build.outputs.continue == 'true' }}
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME || github.repository_owner }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        if: ${{ steps.should-build.outputs.continue == 'true' }}
+        with:
+          push: true
+          context: .
+          platforms: ${{ env.BUILD_PLATFORMS }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Summary
+        run: |
+          echo "Pushed Docker Tags:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.meta.outputs.tags }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
