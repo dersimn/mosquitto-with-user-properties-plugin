@@ -69,20 +69,26 @@ static int callback_message(int event, void *event_data, void *userdata)
 	if (result != MOSQ_ERR_SUCCESS) return result;
 
 	// Add client id
-	result = mosquitto_property_add_string_pair(
-		&ed->properties,
-		MQTT_PROP_USER_PROPERTY,
-		"$CLIENT_ID",
-		mosquitto_client_id(ed->client));
-	if (result != MOSQ_ERR_SUCCESS) return result;
+	const char *client_id = mosquitto_client_id(ed->client);
+	if (client_id && client_id[0] != '\0') {
+		result = mosquitto_property_add_string_pair(
+			&ed->properties,
+			MQTT_PROP_USER_PROPERTY,
+			"$CLIENT_ID",
+			client_id);
+		if (result != MOSQ_ERR_SUCCESS) return result;
+	}
 
 	// Add client username
-	result = mosquitto_property_add_string_pair(
-		&ed->properties,
-		MQTT_PROP_USER_PROPERTY,
-		"$CLIENT_USERNAME",
-		mosquitto_client_username(ed->client));
-	if (result != MOSQ_ERR_SUCCESS) return result;
+	const char *username = mosquitto_client_username(ed->client);
+	if (username && username[0] != '\0') {
+		result = mosquitto_property_add_string_pair(
+			&ed->properties,
+			MQTT_PROP_USER_PROPERTY,
+			"$CLIENT_USERNAME",
+			username);
+		if (result != MOSQ_ERR_SUCCESS) return result;
+	}
 
 	// If no return occurred up to this point, we were successful
 	return MOSQ_ERR_SUCCESS;
