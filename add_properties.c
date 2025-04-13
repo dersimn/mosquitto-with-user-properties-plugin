@@ -42,7 +42,7 @@ Contributors:
 #include "mosquitto.h"
 #include "mqtt_protocol.h"
 
-#define TS_BUF_LEN (14+1)  // 14 characters in unix epoch (ms) is ≈16 Nov 5138
+#define TS_BUF_LEN (20+1)  // 20 characters in unix epoch (ns) is ≈16 Nov 5138
 
 static mosquitto_plugin_id_t *mosq_pid = NULL;
 
@@ -57,15 +57,28 @@ static int callback_message(int event, void *event_data, void *userdata)
 
 	// Add timestamp in unix epoch (ms)
 	struct timespec ts;
-	char ts_buf[TS_BUF_LEN];
-	clock_gettime(CLOCK_REALTIME, &ts);
-	snprintf(ts_buf, TS_BUF_LEN, "%li%03lu", ts.tv_sec, ts.tv_nsec / 1000 / 1000);
 	
+	char ts_buf_ms[TS_BUF_LEN];
+	char ts_buf_ns[TS_BUF_LEN];
+	
+	clock_gettime(CLOCK_REALTIME, &ts);
+	
+	// Milliseconds
+	snprintf(ts_buf_ms, TS_BUF_LEN, "%li%03lu", ts.tv_sec, ts.tv_nsec / 1000000);
 	result = mosquitto_property_add_string_pair(
 		&ed->properties,
 		MQTT_PROP_USER_PROPERTY,
 		"$TIMESTAMP",
-		ts_buf);
+		ts_buf_ms);
+	if (result != MOSQ_ERR_SUCCESS) return result;
+
+	// Nanoseconds
+	snprintf(ts_buf_ns, TS_BUF_LEN, "%li%09lu", ts.tv_sec, ts.tv_nsec);
+	result = mosquitto_property_add_string_pair(
+		&ed->properties,
+		MQTT_PROP_USER_PROPERTY,
+		"$TIMESTAMP_NS",
+		ts_buf_ns);
 	if (result != MOSQ_ERR_SUCCESS) return result;
 
 	// Add client id
